@@ -2256,41 +2256,40 @@
                 }
             });
 
-            // 3. Original 32x32 ICN# Application Icon aligned byte-for-byte from Amazing.dsk & Finder capture
-            //    Shows the 3D trapezoidal perspective maze, the mouse with tail at top, and the Swiss cheese wedge at the front right exit
+            // 3. Exact 32x32 ICN# ID = 128 from Amazing (0x000000 - 0x00007F)
             const ICN_AMAZING_HEX = [
-                0x00000000, // Row 0
-                0x00000000, // Row 1
-                0x00034000, // Row 2:  Mouse back & top of tail
-                0x0007A000, // Row 3:  Mouse body & tail arch
-                0x001F9000, // Row 4:  Mouse base & tail tip
-                0x00000000, // Row 5:  1px gap above maze
-                0x005FC000, // Row 6:  Top edge of 3D perspective maze
-                0x00FE2000, // Row 7:  Maze row 1
-                0x00849800, // Row 8:  Maze row 2
-                0x01EF7D00, // Row 9:  Maze row 3
-                0x02080080, // Row 10: Maze row 4
-                0x03FF7880, // Row 11: Maze row 5
-                0x053E4040, // Row 12: Maze row 6
-                0x089BF100, // Row 13: Maze row 7
-                0x08100820, // Row 14: Maze row 8
-                0x1FF1F080, // Row 15: Maze row 9
-                0x10400810, // Row 16: Maze row 10
-                0x3E7FFFC0, // Row 17: Maze row 11
-                0x7FC7FFFC, // Row 18: Front top edge of 3D wall with doorway gap
-                0x40040004, // Row 19: Front 3D wall thickness
-                0x40040304, // Row 20: Front 3D wall + top tip of Swiss cheese wedge
-                0x40040C84, // Row 21: Front 3D wall + top slope of cheese wedge
-                0x7FC430FC, // Row 22: Bottom of left 3D wall + cheese top edge + right wall corner
-                0x00002920, // Row 23: Cheese wedge interior (hole)
-                0x000024A0, // Row 24: Cheese wedge interior
-                0x00002120, // Row 25: Cheese wedge interior (hole)
-                0x00001860, // Row 26: Cheese bottom-left slope
-                0x000007A0, // Row 27: Cheese bottom-left slope
-                0x000001C0, // Row 28: Cheese bottom corner point
-                0x00000000, // Row 29
-                0x00000000, // Row 30
-                0x00000000  // Row 31
+                0x00063000, // 00: 0006 3000
+                0x001F4800, // 01: 001F 4800
+                0x003F8000, // 02: 003F 8000
+                0x00000000, // 03: 0000 0000
+                0x017FFE00, // 04: 017F FE00
+                0x02082100, // 05: 0208 2100
+                0x03EF7D00, // 06: 03EF 7D00
+                0x04010080, // 07: 0401 0080
+                0x05FFF780, // 08: 05FF F780
+                0x08000040, // 09: 0800 0040
+                0x0E7F3E40, // 10: 0E7F 3E40
+                0x10410220, // 11: 1041 0220
+                0x1389F1E0, // 12: 1389 F1E0
+                0x20080010, // 13: 2008 0010
+                0x3FFFFF90, // 14: 3FFF FF90
+                0x40000008, // 15: 4000 0008
+                0x78FFF8F8, // 16: 78FF F8F8
+                0x80000404, // 17: 8000 0404
+                0xFFF8FFFC, // 18: FFF8 FFFC
+                0x80088004, // 19: 8008 8004
+                0x80088004, // 20: 8008 8004
+                0x800880C4, // 21: 8008 80C4
+                0x80088324, // 22: 8008 8324
+                0xFFF8CC2C, // 23: FFF8 CC2C
+                0x00001320, // 24: 0000 1320
+                0x000014E0, // 25: 0000 14E0
+                0x00001020, // 26: 0000 1020
+                0x00001120, // 27: 0000 1120
+                0x00000C20, // 28: 0000 0C20
+                0x00000340, // 29: 0000 0340
+                0x00000080, // 30: 0000 0080
+                0x00000000  // 31: 0000 0000
             ];
 
             function renderOriginalAppIcon(targetCanvas, scale) {
