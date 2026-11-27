@@ -1,0 +1,484 @@
+/* Amazing 2D (Android) - 1-bit Macintosh window matching the 3D in-game map */
+@font-face {
+    font-family: 'Chicago';
+    src: url('Chicago.ttf') format('truetype');
+    font-display: block;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+    position: fixed;
+    inset: 0;
+    font-family: 'Chicago', monospace;
+    color: #000;
+    /* Classic Macintosh 50% 1-bit dithered gray desktop background */
+    background-color: #fff;
+    background-image:
+        linear-gradient(45deg, #000 25%, transparent 25%),
+        linear-gradient(-45deg, #000 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #000 75%),
+        linear-gradient(-45deg, transparent 75%, #000 75%);
+    background-size: 4px 4px;
+    background-position: 0 0, 0 2px, 2px -2px, -2px 0;
+    -webkit-font-smoothing: none;
+    font-smooth: never;
+}
+
+#macWindow {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    overflow: hidden;
+}
+
+/* ---------- Top stats bar (slide-in overlay) ---------- */
+#statsPanel {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 20;
+    background: #fff;
+    border-bottom: 2px solid #000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4em;
+    white-space: nowrap;
+    overflow: hidden;
+    transform-origin: 0 0;
+    transition: transform 0.18s ease-out;
+    pointer-events: none;
+    visibility: hidden;
+}
+
+body.menus-open #statsPanel {
+    pointer-events: auto;
+    visibility: visible;
+}
+
+#statsPanel.solved {
+    background: #000;
+    color: #fff;
+    box-shadow: inset 0 0 0 2px #fff;
+}
+
+.stats-spacer {
+    width: 1.8em;
+    flex-shrink: 0;
+}
+
+#statsText {
+    flex: 1;
+    text-align: center;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    overflow: hidden;
+}
+
+.mac-icon-btn {
+    position: relative;
+    flex-shrink: 0;
+    width: 1.8em;
+    height: 1.55em;
+    background: #fff;
+    color: #000;
+    border: 2px solid #000;
+    border-radius: 0.35em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    outline: none;
+}
+
+.mac-icon-btn::before {
+    content: '';
+    position: absolute;
+    inset: -0.4em;
+}
+
+.mac-icon-btn.pressed {
+    background: #000;
+    color: #fff;
+}
+
+#statsPanel.solved .mac-icon-btn {
+    background: #000;
+    color: #fff;
+    border-color: #fff;
+}
+
+#statsPanel.solved .mac-icon-btn.pressed {
+    background: #fff;
+    color: #000;
+}
+
+.trophy-icon {
+    width: 1.05em;
+    height: 1.05em;
+    display: block;
+}
+
+/* ---------- Middle 1-bit maze canvas (full screen) ---------- */
+#mazeFrame {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #fff;
+    background-image:
+        linear-gradient(45deg, #000 25%, transparent 25%),
+        linear-gradient(-45deg, #000 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #000 75%),
+        linear-gradient(-45deg, transparent 75%, #000 75%);
+    background-size: 4px 4px;
+    background-position: 0 0, 0 2px, 2px -2px, -2px 0;
+    overflow: hidden;
+}
+
+#mazeCanvas, #fxCanvas {
+    position: absolute;
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    touch-action: none;
+}
+
+#fxCanvas {
+    pointer-events: none;
+}
+
+/* ---------- Bottom controls bar (slide-in overlay) ---------- */
+#controlsPanel {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 20;
+    background: #fff;
+    border-top: 2px solid #000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0.7em;
+    overflow: hidden;
+    transform-origin: 0 0;
+    transition: transform 0.18s ease-out;
+    pointer-events: none;
+    visibility: hidden;
+}
+
+body.menus-open #controlsPanel {
+    pointer-events: auto;
+    visibility: visible;
+}
+
+#topControlsRow {
+    display: flex;
+    align-items: center;
+    gap: 1.0em;
+}
+
+#skillGroup {
+    display: flex;
+    align-items: center;
+    gap: 0.65em;
+    white-space: nowrap;
+}
+
+.mac-check-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    cursor: pointer;
+}
+
+.mac-check-wrap::before {
+    content: '';
+    position: absolute;
+    inset: -0.45em;
+}
+
+.mac-checkbox {
+    position: relative;
+    width: 1.05em;
+    height: 1.05em;
+    border: 2px solid #000;
+    background: #fff;
+}
+
+.mac-check-wrap.checked .mac-checkbox::before,
+.mac-check-wrap.checked .mac-checkbox::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 85%;
+    height: 2px;
+    background: #000;
+}
+
+.mac-check-wrap.checked .mac-checkbox::before {
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.mac-check-wrap.checked .mac-checkbox::after {
+    transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.mac-check-wrap.pressed .mac-checkbox {
+    box-shadow: inset 0 0 0 1px #000;
+}
+
+.vib-icon {
+    width: 1.3em;
+    height: 1.15em;
+    color: #000;
+    display: block;
+}
+
+.skill-label {
+    line-height: 1;
+}
+
+#skillRadios {
+    display: flex;
+    align-items: center;
+    gap: 0.65em;
+}
+
+/* Geometric primitive circle radio buttons matching DrawRadioButtonPrimitiveFB */
+.mac-radio {
+    position: relative;
+    width: 1.15em;
+    height: 1.15em;
+    border: 2px solid #000;
+    border-radius: 50%;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.mac-radio::before {
+    content: '';
+    position: absolute;
+    inset: -0.45em;
+}
+
+.mac-radio.checked::after {
+    content: '';
+    width: 0.52em;
+    height: 0.52em;
+    background: #000;
+    border-radius: 50%;
+}
+
+.mac-radio.pressed {
+    box-shadow: inset 0 0 0 1px #000;
+}
+
+#buttonGroup {
+    display: flex;
+    align-items: center;
+    gap: 0.7em;
+}
+
+/* Rounded-rect Macintosh push buttons matching DrawMacRoundRectButtonFB */
+.mac-btn {
+    font-family: 'Chicago', monospace;
+    font-size: 0.96em;
+    line-height: 1;
+    background: #fff;
+    color: #000;
+    border: 2px solid #000;
+    border-radius: 0.55em;
+    padding: 0 0.85em;
+    height: 2.05em;
+    min-width: 7.4em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    outline: none;
+    cursor: pointer;
+}
+
+.mac-btn.pressed,
+.mac-btn.invert {
+    background: #000;
+    color: #fff;
+}
+
+/* ---------- Vertical (portrait) two-row menu layout ---------- */
+body.menus-portrait #statsPanel {
+    white-space: pre-line;
+    text-align: center;
+}
+
+body.menus-portrait #statsText {
+    line-height: 1.32;
+}
+
+body.menus-portrait #controlsPanel {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.45em;
+}
+
+body.menus-portrait #skillGroup {
+    gap: 0.85em;
+}
+
+body.menus-portrait #skillRadios {
+    gap: 0.85em;
+}
+
+body.menus-portrait #buttonGroup {
+    gap: 0.9em;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* ---------- 1-bit Macintosh Statistics Modal ---------- */
+#statsModalBackdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 40;
+    background-color: rgba(0, 0, 0, 0.35);
+    background-image:
+        linear-gradient(45deg, rgba(0, 0, 0, 0.45) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(0, 0, 0, 0.45) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(0, 0, 0, 0.45) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(0, 0, 0, 0.45) 75%);
+    background-size: 4px 4px;
+    background-position: 0 0, 0 2px, 2px -2px, -2px 0;
+}
+
+#statsDialog {
+    position: absolute;
+    left: 0;
+    top: 0;
+    background: #fff;
+    color: #000;
+    border: 2px solid #000;
+    box-shadow: 4px 4px 0 #000;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transform-origin: center center;
+}
+
+.mac-titlebar {
+    height: 1.9em;
+    border-bottom: 2px solid #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: repeating-linear-gradient(
+        to bottom,
+        #000 0px,
+        #000 1px,
+        #fff 1px,
+        #fff 3px
+    );
+    flex-shrink: 0;
+}
+
+.mac-titlebar-text {
+    background: #fff;
+    padding: 0.05em 0.65em;
+    line-height: 1.1;
+}
+
+#statsDialogBody {
+    padding: 0.75em 0.9em 0.8em;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75em;
+}
+
+#statsTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95em;
+    font-variant-numeric: tabular-nums;
+}
+
+#statsTable th,
+#statsTable td {
+    padding: 0.32em 0.35em;
+    border-bottom: 1px solid #000;
+    text-align: right;
+    white-space: nowrap;
+}
+
+#statsTable th:first-child,
+#statsTable td:first-child {
+    text-align: left;
+}
+
+#statsTable th {
+    border-bottom: 2px solid #000;
+}
+
+#statsTable tr.active-level td:first-child {
+    text-decoration: underline;
+}
+
+#statsTable tr.total-row td {
+    border-top: 2px solid #000;
+    border-bottom: none;
+    padding-top: 0.42em;
+}
+
+#statsDialogFooter {
+    padding-top: 0.1em;
+}
+
+.stats-footer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6em;
+}
+
+.confirm-prompt {
+    font-size: 0.92em;
+    white-space: nowrap;
+}
+
+.confirm-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
+#statsDialog .mac-btn {
+    min-width: 5.6em;
+    height: 1.95em;
+    padding: 0 0.7em;
+    font-size: 0.9em;
+}

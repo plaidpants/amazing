@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Amazing</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="macWindow">
+        <!-- Top stats bar matching the 3D in-game wrist map -->
+        <div id="statsPanel">
+            <div class="stats-spacer" aria-hidden="true"></div>
+            <span id="statsText">Time: 00:00 &nbsp;&nbsp; Lv.1 Solves: 0 &nbsp;&nbsp; Best: --:--</span>
+            <button id="btnTrophy" class="mac-icon-btn" type="button" aria-label="Statistics">
+                <svg class="trophy-icon" viewBox="0 0 16 16" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true">
+                    <rect x="3" y="2" width="10" height="2"/>
+                    <rect x="4" y="4" width="8" height="4"/>
+                    <rect x="5" y="8" width="6" height="2"/>
+                    <rect x="1" y="3" width="2" height="3"/>
+                    <rect x="2" y="6" width="2" height="1"/>
+                    <rect x="13" y="3" width="2" height="3"/>
+                    <rect x="12" y="6" width="2" height="1"/>
+                    <rect x="7" y="10" width="2" height="3"/>
+                    <rect x="4" y="13" width="8" height="2"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- 1-bit QuickDraw maze framebuffer (always fits screen, no scroll/rotate) -->
+        <div id="mazeFrame">
+            <canvas id="mazeCanvas" width="512" height="320"></canvas>
+            <canvas id="fxCanvas" width="512" height="320"></canvas>
+        </div>
+
+        <!-- Bottom controls bar matching the 3D in-game wrist map -->
+        <div id="controlsPanel">
+            <div id="topControlsRow">
+                <div id="skillGroup">
+                    <span class="skill-label">Easy</span>
+                    <div id="skillRadios"></div>
+                    <span class="skill-label">Hard</span>
+                </div>
+                <div id="hapticToggle" class="mac-check-wrap checked" role="checkbox" aria-checked="true" aria-label="Haptic Feedback">
+                    <div class="mac-checkbox"></div>
+                    <svg class="vib-icon" viewBox="0 0 18 16" fill="currentColor" aria-hidden="true">
+                        <rect x="6" y="1" width="6" height="14"/>
+                        <rect x="7" y="3" width="4" height="10" fill="#fff"/>
+                        <rect x="3" y="4" width="1" height="8"/>
+                        <rect x="1" y="6" width="1" height="4"/>
+                        <rect x="14" y="4" width="1" height="8"/>
+                        <rect x="16" y="6" width="1" height="4"/>
+                    </svg>
+                </div>
+            </div>
+            <div id="buttonGroup">
+                <button id="btnNew" class="mac-btn" type="button">New Game</button>
+                <button id="btnSolution" class="mac-btn" type="button">Solution</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden elements referenced by the extracted web-port engine -->
+    <div style="display:none"><span id="statusText"></span><span id="windowTitle"></span><span id="layerBadge"></span></div>
+
+    <!-- 1-bit Macintosh Statistics Modal -->
+    <div id="statsModalBackdrop" class="hidden" aria-hidden="true">
+        <div id="statsDialog" role="dialog" aria-modal="true" aria-label="Maze Statistics">
+            <div class="mac-titlebar">
+                <span class="mac-titlebar-text">Statistics</span>
+            </div>
+            <div id="statsDialogBody">
+                <table id="statsTable">
+                    <thead>
+                        <tr>
+                            <th>Level</th>
+                            <th>Solves</th>
+                            <th>Best</th>
+                            <th>Avg</th>
+                        </tr>
+                    </thead>
+                    <tbody id="statsTableBody"></tbody>
+                </table>
+                <div id="statsDialogFooter">
+                    <div id="statsFooterNormal" class="stats-footer-row">
+                        <button id="btnResetStats" class="mac-btn" type="button">Reset Stats</button>
+                        <button id="btnCloseStats" class="mac-btn" type="button">Close</button>
+                    </div>
+                    <div id="statsFooterConfirm" class="stats-footer-row hidden">
+                        <span class="confirm-prompt">Clear all stats?</span>
+                        <div class="confirm-actions">
+                            <button id="btnCancelReset" class="mac-btn" type="button">Cancel</button>
+                            <button id="btnConfirmReset" class="mac-btn invert" type="button">Reset</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="penguin.js"></script>
+    <script src="engine.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

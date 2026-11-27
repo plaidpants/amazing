@@ -272,7 +272,7 @@
             <button id="btnQuickNew" class="mac-btn text-[11px] py-1 px-2.5">New</button>
             <button id="btnQuickSkill" class="mac-btn text-[11px] py-1 px-2.5">Skill...</button>
             <button id="btnQuickSolve" class="mac-btn text-[11px] py-1 px-2.5">Solution</button>
-            <button id="btnZoomToggle" class="mac-btn text-[11px] py-1 px-2.5" title="Toggle 1x / 2x Crisp Pixel Scale">Zoom: 1.5x</button>
+            <button id="btnZoomToggle" class="mac-btn text-[11px] py-1 px-2.5" title="Cycle Exact Integer Pixel Scale">Zoom: Auto</button>
             <button id="btnQuickPig" class="mac-btn text-[11px] py-1 px-2.5" title="Steve Capps' hidden ResEdit stress-test mode">Start Pig</button>
         </div>
     </div>
@@ -320,9 +320,23 @@
                 </div>
 
                 <!-- Live Status Pill in Menu Bar Right -->
-                <div class="ml-auto flex items-center gap-3 text-[11px] font-normal pr-1">
+                <div class="ml-auto flex items-center gap-2 text-[11px] font-normal pr-1">
+                    <span id="timerBadge" class="px-1.5 py-0.5 border border-black bg-white text-black tabular-nums">00:00</span>
                     <span id="layerBadge" class="px-1.5 py-0.5 border border-black bg-white text-black">LAYER: LOWER</span>
                     <span id="statusText" class="hidden sm:inline">CLICK OR DRAG</span>
+                    <button id="btnTrophy" type="button" title="Statistics" aria-label="Statistics" class="px-1 py-0.5 border border-black bg-white text-black hover:bg-black hover:text-white cursor-pointer flex items-center justify-center">
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" shape-rendering="crispEdges">
+                            <rect x="3" y="2" width="10" height="2"/>
+                            <rect x="4" y="4" width="8" height="4"/>
+                            <rect x="5" y="8" width="6" height="2"/>
+                            <rect x="1" y="3" width="2" height="3"/>
+                            <rect x="2" y="6" width="2" height="1"/>
+                            <rect x="13" y="3" width="2" height="3"/>
+                            <rect x="12" y="6" width="2" height="1"/>
+                            <rect x="7" y="10" width="2" height="3"/>
+                            <rect x="4" y="13" width="8" height="2"/>
+                        </svg>
+                    </button>
                 </div>
             </div>
 
@@ -403,6 +417,37 @@
                         <div class="flex justify-end gap-2">
                             <button id="pigKeepGoing" class="mac-btn">Keep Oinking</button>
                             <button id="pigStop" class="mac-btn mac-btn-default">Stop Pig</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Statistics Modal -->
+                <div id="statsModal" class="mac-modal-overlay">
+                    <div class="mac-dialog w-[370px] max-w-[92vw]">
+                        <div class="mac-titlebar mb-3 -mx-4 -mt-4">
+                            <span class="mac-titlebar-text">Statistics</span>
+                        </div>
+                        <table class="w-full text-[11px] border-collapse mb-3 tabular-nums">
+                            <thead>
+                                <tr class="border-b-2 border-black">
+                                    <th class="text-left py-1">Level</th>
+                                    <th class="text-right py-1">Solves</th>
+                                    <th class="text-right py-1">Best</th>
+                                    <th class="text-right py-1">Avg</th>
+                                </tr>
+                            </thead>
+                            <tbody id="statsTableBody"></tbody>
+                        </table>
+                        <div id="statsFooterNormal" class="flex items-center justify-between gap-2 pt-1">
+                            <button id="btnResetStats" class="mac-btn">Reset Stats</button>
+                            <button id="btnCloseStats" class="mac-btn mac-btn-default">Close</button>
+                        </div>
+                        <div id="statsFooterConfirm" class="hidden flex items-center justify-between gap-2 pt-1">
+                            <span class="text-[11px] font-bold">Clear all stats?</span>
+                            <div class="flex items-center gap-2">
+                                <button id="btnCancelReset" class="mac-btn">Cancel</button>
+                                <button id="btnConfirmReset" class="mac-btn bg-black text-white">Reset</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -682,7 +727,7 @@
                 allowWideBridges: true,
                 allowNarrowPlane: true,
                 allowNarrowBridges: true,
-                numWalks: 520, rampChance: 0.55, bridgeChance: 0.85,
+                numWalks: 520, rampChance: 0.24, bridgeChance: 0.92,
                 label: "Level 4 (Hard): Maximum wide & narrow overpasses (up to 4 paths/cell) & ramp transitions"
             }
         ];
@@ -690,7 +735,7 @@
         let gSkillLevel = 0; // Default to Level 1 (Easy)
         let gMaxRow = 19;
         let gMaxCol = 31;
-        let gZoom = 1.5;     // Crisp pixel display multiplier for modern monitors
+        let gZoomMode = 0;   // 0 = Auto (largest fitting integer device-pixel multiple), 1/2/3 = fixed integer device scale
 
         // 3D Maze array: gMaze[r][c][subLayer] where subLayer is 1..4:
         //   1 = Wide Base, 2 = Wide 90° Overpass, 3 = Narrow Base, 4 = Narrow 90° Overpass
@@ -709,6 +754,9 @@
 
         let gGameWon = false;
         let gShowingSolution = false;
+        let showPenguin = false;
+        let solutionUsedThisMaze = false;
+        let activeSolutionNodes = [];
         let gPigMode = false;
         let gPigTimer = null;
 
@@ -741,10 +789,23 @@
             }
         }
 
-        function applyCanvasZoom() {
-            canvas.style.width = `${Math.round(fbWidth * gZoom)}px`;
-            canvas.style.height = `${Math.round(fbHeight * gZoom)}px`;
+        function getEffectiveIntScale() {
+            const dpr = window.devicePixelRatio || 1;
+            if (gZoomMode > 0) return gZoomMode;
+            const maxWDev = Math.max(fbWidth, Math.floor(Math.min(window.innerWidth - 48, 1088) * dpr));
+            const maxHDev = Math.max(fbHeight, Math.floor((window.innerHeight - 210) * dpr));
+            return Math.max(1, Math.floor(Math.min(maxWDev / fbWidth, maxHDev / fbHeight)));
         }
+
+        function applyCanvasZoom() {
+            const dpr = window.devicePixelRatio || 1;
+            const intScale = getEffectiveIntScale();
+            canvas.style.width = `${(fbWidth * intScale) / dpr}px`;
+            canvas.style.height = `${(fbHeight * intScale) / dpr}px`;
+            const btn = document.getElementById('btnZoomToggle');
+            if (btn) btn.textContent = (gZoomMode === 0) ? `Zoom: Auto (${intScale}x)` : `Zoom: ${intScale}x`;
+        }
+        window.addEventListener('resize', applyCanvasZoom);
 
         function setPixel(x, y, val) {
             if (x >= 0 && x < fbWidth && y >= 0 && y < fbHeight) {
@@ -1233,12 +1294,14 @@
                 if (wBaseOpen !== 0) {
                     drawWideCorridor(wBaseOpen);
                     drawOccupiedSubLayer(LAYER_WIDE_BASE);
+                    drawSolutionDotsForCellLayer(r, c, LAYER_WIDE_BASE);
                 }
 
                 // Pass 2: Wide 90° Overpass Bridge
                 if (wBridgeOpen !== 0) {
                     drawWideOverpass(wBridgeOpen);
                     drawOccupiedSubLayer(LAYER_WIDE_BRIDGE);
+                    drawSolutionDotsForCellLayer(r, c, LAYER_WIDE_BRIDGE);
                 }
             } else {
                 // Pass 3: 45° Diagonal Ramp transitioning Wide Base (1) <-> Narrow Base (3)
@@ -1285,6 +1348,8 @@
                 if ((wBase & 0x30) !== 0 || (nBase & 0x30) !== 0) {
                     drawOccupiedSubLayer((wBase & 0x30) !== 0 ? LAYER_WIDE_BASE : LAYER_NARROW_BASE);
                 }
+                drawSolutionDotsForCellLayer(r, c, LAYER_WIDE_BASE);
+                drawSolutionDotsForCellLayer(r, c, LAYER_NARROW_BASE);
             }
 
             // Pass 4 & 5: Narrow Upper Maze Plane (drawn right on top of the Wide Maze!)
@@ -1292,10 +1357,12 @@
                 if (nBaseOpen !== 0) {
                     drawNarrowCorridor(nBaseOpen);
                     drawOccupiedSubLayer(LAYER_NARROW_BASE);
+                    drawSolutionDotsForCellLayer(r, c, LAYER_NARROW_BASE);
                 }
                 if (nBridgeOpen !== 0) {
                     drawNarrowOverpass(nBridgeOpen);
                     drawOccupiedSubLayer(LAYER_NARROW_BRIDGE);
+                    drawSolutionDotsForCellLayer(r, c, LAYER_NARROW_BRIDGE);
                 }
             }
 
@@ -1330,6 +1397,7 @@
         }
 
         function RenderEntireMaze() {
+            buildSolutionDotsMap();
             // Re-fill outer margins with 50% grey checkerboard
             fillGrayRectFB(0, 0, fbWidth, fbHeight);
 
@@ -1346,6 +1414,10 @@
             fillRectFB(MARGIN_X - 1, MARGIN_Y + gMaxRow * TILE_STRIDE, gMaxCol * TILE_STRIDE + 2, 1, 1);
             fillRectFB(MARGIN_X - 1, MARGIN_Y - 1, 1, gMaxRow * TILE_STRIDE + 2, 1);
             fillRectFB(MARGIN_X + gMaxCol * TILE_STRIDE, MARGIN_Y - 1, 1, gMaxRow * TILE_STRIDE + 2, 1);
+
+            if (gGameWon && showPenguin) {
+                drawPenguinFB();
+            }
 
             flushFramebufferToCanvas();
         }
@@ -1371,7 +1443,7 @@
          *       * Connect Plane 1 (`LAYER_WIDE_BASE`) and Plane 2 (`LAYER_NARROW_BASE`)
          *         on a cell where all 4 sub-layers are currently uncarved.
          */
-        function MakeMaze() {
+        function MakeMaze(retryDepth = 0) {
             const cfg = SKILL_CONFIGS[gSkillLevel];
             gMaxRow = cfg.rows;
             gMaxCol = cfg.cols;
@@ -1383,8 +1455,12 @@
             allocateGrid(gMaxRow, gMaxCol);
             gGameWon = false;
             gShowingSolution = false;
+            showPenguin = false;
+            solutionUsedThisMaze = false;
+            activeSolutionNodes = [];
             gSavedPreSolutionState = null;
             updateSolutionButtonUI();
+            if (retryDepth === 0) timerReset();
 
             // Checks if a cell is completely empty on all 4 sub-layers (used when placing a Ramp)
             const isCellCompletelyEmpty = (r, c) =>
@@ -1648,23 +1724,78 @@
                 }
             }
 
-            if (wideDeadEnds.length >= 2) {
-                const borderEnds = wideDeadEnds.filter(d => d.isBorder);
-                const startPool = borderEnds.length > 0 ? borderEnds : wideDeadEnds;
-                gStartPos = startPool[Math.floor(Math.random() * startPool.length)];
-
-                let bestScore = -1;
-                let bestEnd = wideDeadEnds[0];
-                for (const cand of wideDeadEnds) {
-                    if (cand.r === gStartPos.r && cand.c === gStartPos.c) continue;
-                    const dist = Math.abs(cand.r - gStartPos.r) + Math.abs(cand.c - gStartPos.c);
-                    const score = dist + (cand.isBorder ? 8 : 0);
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestEnd = cand;
+            function computeMoveDistancesFrom(origin) {
+                const distMap = new Map();
+                const startKey = `${origin.r},${origin.c},${origin.layer}`;
+                distMap.set(startKey, 0);
+                const q = [{ r: origin.r, c: origin.c, layer: origin.layer, d: 0 }];
+                let head = 0;
+                while (head < q.length) {
+                    const cur = q[head++];
+                    for (let dir = 0; dir < 4; dir++) {
+                        const step = canMove(cur.r, cur.c, cur.layer, dir);
+                        if (!step) continue;
+                        const k = `${step.r},${step.c},${step.layer}`;
+                        if (!distMap.has(k)) {
+                            distMap.set(k, cur.d + 1);
+                            q.push({ r: step.r, c: step.c, layer: step.layer, d: cur.d + 1 });
+                        }
                     }
                 }
-                gEndPos = { r: bestEnd.r, c: bestEnd.c, layer: LAYER_WIDE_BASE };
+                return distMap;
+            }
+
+            const minMult = (gSkillLevel === 3) ? 1.05 : 0.85;
+            const minSolutionMoves = Math.max(12, Math.floor((gMaxRow + gMaxCol) * minMult));
+
+            if (wideDeadEnds.length >= 2) {
+                const longPairs = [];
+                let bestPair = null;
+                let bestMoves = -1;
+
+                for (let i = 0; i < wideDeadEnds.length; i++) {
+                    const a = wideDeadEnds[i];
+                    const distMap = computeMoveDistancesFrom(a);
+                    for (let j = i + 1; j < wideDeadEnds.length; j++) {
+                        const b = wideDeadEnds[j];
+                        const moves = distMap.get(`${b.r},${b.c},${b.layer}`);
+                        if (moves === undefined) continue;
+                        const score = moves + (a.isBorder ? 4 : 0) + (b.isBorder ? 4 : 0);
+                        if (moves > bestMoves || (moves === bestMoves && bestPair && score > bestPair.score)) {
+                            bestMoves = moves;
+                            bestPair = { a, b, moves, score };
+                        }
+                        if (moves >= minSolutionMoves) {
+                            longPairs.push({ a, b, moves, score });
+                        }
+                    }
+                }
+
+                if (longPairs.length === 0 && retryDepth < 20) {
+                    MakeMaze(retryDepth + 1);
+                    return;
+                }
+
+                let chosen = bestPair;
+                if (longPairs.length > 0) {
+                    longPairs.sort((p, q) => q.score - p.score);
+                    const topCount = Math.max(1, Math.ceil(longPairs.length * 0.35));
+                    chosen = longPairs[Math.floor(Math.random() * topCount)];
+                }
+
+                if (chosen) {
+                    const flip = Math.random() < 0.5;
+                    const sNode = flip ? chosen.b : chosen.a;
+                    const eNode = flip ? chosen.a : chosen.b;
+                    gStartPos = { r: sNode.r, c: sNode.c, layer: LAYER_WIDE_BASE };
+                    gEndPos = { r: eNode.r, c: eNode.c, layer: LAYER_WIDE_BASE };
+                } else {
+                    gStartPos = { r: wideDeadEnds[0].r, c: wideDeadEnds[0].c, layer: LAYER_WIDE_BASE };
+                    gEndPos = { r: wideDeadEnds[1].r, c: wideDeadEnds[1].c, layer: LAYER_WIDE_BASE };
+                }
+            } else if (retryDepth < 20) {
+                MakeMaze(retryDepth + 1);
+                return;
             } else {
                 gStartPos = { r: seedR, c: seedC, layer: LAYER_WIDE_BASE };
                 const lastNode = allCarvedNodes[allCarvedNodes.length - 1];
@@ -1833,8 +1964,14 @@
 
         function triggerWin() {
             gGameWon = true;
-            document.getElementById('statusText').textContent = 'SOLVED!';
+            timerStop();
+            if (!solutionUsedThisMaze) {
+                recordSolve(gSkillLevel, timerElapsed());
+            }
+            showPenguin = true;
+            document.getElementById('statusText').textContent = solutionUsedThisMaze ? 'SOLVED (W/ SOL)' : 'SOLVED!';
             document.getElementById('windowTitle').textContent = 'Maze - Solved!';
+            RenderEntireMaze();
             setTimeout(() => {
                 if (!gPigMode) {
                     document.getElementById('windowTitle').textContent = 'Maze';
@@ -1868,6 +2005,7 @@
                 gPlayer = { ...gSavedPreSolutionState.player };
                 gGameWon = gSavedPreSolutionState.gameWon;
                 gShowingSolution = false;
+                activeSolutionNodes = [];
                 gSavedPreSolutionState = null;
 
                 updateSolutionButtonUI();
@@ -1878,6 +2016,7 @@
                 return;
             }
 
+            solutionUsedThisMaze = true;
             // Save current player path & position before displaying solution
             gSavedPreSolutionState = {
                 pathHistory: gPathHistory.map(p => ({ ...p })),
@@ -1885,44 +2024,53 @@
                 gameWon: gGameWon
             };
 
-            const visited = new Set();
-            const steps = [];
-
-            function dfs(r, c, layer) {
-                const key = `${r},${c},${layer}`;
-                if (visited.has(key)) return false;
-                visited.add(key);
-
-                if (r === gEndPos.r && c === gEndPos.c && layer === gEndPos.layer) {
-                    return true;
-                }
-
+            // Display solved path from the last correct point on the user's path
+            const startKey = `${gStartPos.r},${gStartPos.c},${gStartPos.layer}`;
+            const visited = new Set([startKey]);
+            const parent = new Map();
+            const queue = [{ r: gStartPos.r, c: gStartPos.c, layer: gStartPos.layer }];
+            let found = null;
+            while (queue.length > 0) {
+                const cur = queue.shift();
+                if (cur.r === gEndPos.r && cur.c === gEndPos.c && cur.layer === gEndPos.layer) { found = cur; break; }
                 for (let dir = 0; dir < 4; dir++) {
-                    const step = canMove(r, c, layer, dir);
-                    if (step) {
-                        if (dfs(step.r, step.c, step.layer)) {
-                            steps.push({ r, c, layer, dir, step });
-                            return true;
-                        }
+                    const step = canMove(cur.r, cur.c, cur.layer, dir);
+                    if (!step) continue;
+                    const nextNode = { r: step.r, c: step.c, layer: step.layer };
+                    const nextKey = `${nextNode.r},${nextNode.c},${nextNode.layer}`;
+                    if (!visited.has(nextKey)) {
+                        visited.add(nextKey);
+                        parent.set(nextKey, cur);
+                        queue.push(nextNode);
                     }
                 }
-                return false;
             }
-
-            dfs(gStartPos.r, gStartPos.c, gStartPos.layer);
-            steps.reverse();
-
-            // Display solved path
-            gPathHistory = [{ ...gStartPos }];
-            for (const node of steps) {
-                gPathHistory.push({ r: node.step.r, c: node.step.c, layer: node.step.layer });
+            const fullSolution = [];
+            let trace = found;
+            while (trace) {
+                fullSolution.push(trace);
+                const key = `${trace.r},${trace.c},${trace.layer}`;
+                if (key === startKey) break;
+                trace = parent.get(key);
             }
-            gPlayer = { ...gPathHistory[gPathHistory.length - 1] };
+            fullSolution.reverse();
+
+            const solIndexMap = new Map();
+            for (let i = 0; i < fullSolution.length; i++) {
+                const n = fullSolution[i];
+                solIndexMap.set(`${n.r},${n.c},${n.layer}`, i);
+            }
+            let startIdx = 0;
+            for (let k = gPathHistory.length - 1; k >= 0; k--) {
+                const p = gPathHistory[k];
+                const idx = solIndexMap.get(`${p.r},${p.c},${p.layer}`);
+                if (idx !== undefined) { startIdx = idx; break; }
+            }
+            activeSolutionNodes = fullSolution.slice(startIdx);
             gGameWon = false;
-            gShowingSolution = true;
+            gShowingSolution = activeSolutionNodes.length > 1;
 
             updateSolutionButtonUI();
-            syncGridWithPathHistory(5);
             updateLayerIndicator();
             RenderEntireMaze();
             document.getElementById('statusText').textContent = 'SOLUTION SHOWN';
@@ -1944,57 +2092,75 @@
          * ============================================================================ */
         let isDragging = false;
 
-        function handlePointerAt(clientX, clientY) {
-            if (gGameWon) return;
+        function clientToGridFloat(clientX, clientY) {
             const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
-            const x = (clientX - rect.left) * scaleX;
-            const y = (clientY - rect.top) * scaleY;
+            const x = (clientX - rect.left) * (fbWidth / Math.max(1, rect.width));
+            const y = (clientY - rect.top) * (fbHeight / Math.max(1, rect.height));
+            return {
+                fr: (y - MARGIN_Y) / TILE_STRIDE + 0.5,
+                fc: (x - MARGIN_X) / TILE_STRIDE + 0.5
+            };
+        }
 
-            const targetC = Math.floor((x - MARGIN_X) / TILE_STRIDE) + 1;
-            const targetR = Math.floor((y - MARGIN_Y) / TILE_STRIDE) + 1;
+        // 1-step BFS: checks legal 1-step moves from gPlayer and takes the single step
+        // that moves closest to the pointer, allowing smooth corner-cutting while dragging.
+        function stepOneBfsTowardPointer(fr, fc) {
+            if (gGameWon) return;
 
-            if (targetR < 1 || targetR > gMaxRow || targetC < 1 || targetC > gMaxCol) return;
-            if (targetR === gPlayer.r && targetC === gPlayer.c) return;
+            const curDistSq = (gPlayer.r - fr) * (gPlayer.r - fr) + (gPlayer.c - fc) * (gPlayer.c - fc);
+            if (curDistSq > 1.85 * 1.85 || curDistSq < 0.18) return;
 
-            const dr = targetR - gPlayer.r;
-            const dc = targetC - gPlayer.c;
-            if (Math.abs(dr) + Math.abs(dc) === 1) {
-                let dir = -1;
-                if (dc === -1) dir = DIR_LEFT;
-                else if (dr === 1) dir = DIR_DOWN;
-                else if (dc === 1) dir = DIR_RIGHT;
-                else if (dr === -1) dir = DIR_UP;
-                if (dir !== -1) movePlayerDir(dir);
-            } else if (Math.abs(dr) + Math.abs(dc) <= 3 && (dr === 0 || dc === 0)) {
-                // Smooth multi-cell drag along straight corridors and over bridges
-                let dir = -1;
-                if (dc < 0) dir = DIR_LEFT;
-                else if (dr > 0) dir = DIR_DOWN;
-                else if (dc > 0) dir = DIR_RIGHT;
-                else if (dr < 0) dir = DIR_UP;
-                const steps = Math.abs(dr) + Math.abs(dc);
-                for (let s = 0; s < steps; s++) {
-                    if (!movePlayerDir(dir)) break;
+            let bestDir = -1;
+            let bestDistSq = curDistSq - 0.08;
+
+            for (let dir = 0; dir < 4; dir++) {
+                const step = canMove(gPlayer.r, gPlayer.c, gPlayer.layer, dir);
+                if (!step) continue;
+                const dSq = (step.r - fr) * (step.r - fr) + (step.c - fc) * (step.c - fc);
+                if (dSq < bestDistSq) {
+                    bestDistSq = dSq;
+                    bestDir = dir;
                 }
             }
+
+            if (bestDir === -1) return;
+            movePlayerDir(bestDir);
         }
 
         canvas.addEventListener('pointerdown', (e) => {
-            isDragging = true;
-            canvas.setPointerCapture(e.pointerId);
-            handlePointerAt(e.clientX, e.clientY);
+            if (gGameWon) {
+                showPenguin = !showPenguin;
+                RenderEntireMaze();
+                return;
+            }
+            if (gShowingSolution) {
+                gShowingSolution = false;
+                activeSolutionNodes = [];
+                gSavedPreSolutionState = null;
+                updateSolutionButtonUI();
+                RenderEntireMaze();
+            }
+            const { fr, fc } = clientToGridFloat(e.clientX, e.clientY);
+            const distFromPlayer = Math.hypot(fr - gPlayer.r, fc - gPlayer.c);
+            if (distFromPlayer <= 1.85) {
+                isDragging = true;
+                try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
+                stepOneBfsTowardPointer(fr, fc);
+            }
         });
 
         canvas.addEventListener('pointermove', (e) => {
-            if (!isDragging) return;
-            handlePointerAt(e.clientX, e.clientY);
+            if (!isDragging || gGameWon) return;
+            const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+            for (const ev of (events.length ? events : [e])) {
+                const { fr, fc } = clientToGridFloat(ev.clientX, ev.clientY);
+                stepOneBfsTowardPointer(fr, fc);
+            }
         });
 
-        canvas.addEventListener('pointerup', () => {
-            isDragging = false;
-        });
+        const endPointerDrag = () => { isDragging = false; };
+        canvas.addEventListener('pointerup', endPointerDrag);
+        canvas.addEventListener('pointercancel', endPointerDrag);
 
         // Keyboard Arrow / WASD support
         window.addEventListener('keydown', (e) => {
@@ -2172,9 +2338,8 @@
         document.getElementById('btnQuickNew').addEventListener('click', () => MakeMaze());
         document.getElementById('btnQuickSkill').addEventListener('click', () => openSkillDialog());
         document.getElementById('btnQuickSolve').addEventListener('click', () => SolveMaze());
-        document.getElementById('btnZoomToggle').addEventListener('click', (e) => {
-            gZoom = (gZoom === 1) ? 1.5 : (gZoom === 1.5 ? 2 : 1);
-            e.currentTarget.textContent = `Zoom: ${gZoom}x`;
+        document.getElementById('btnZoomToggle').addEventListener('click', () => {
+            gZoomMode = (gZoomMode + 1) % 4; // 0 (Auto) -> 1x -> 2x -> 3x -> 0 (Auto)
             applyCanvasZoom();
         });
         document.getElementById('btnQuickPig').addEventListener('click', () => {
@@ -2311,6 +2476,333 @@
             renderOriginalAppIcon(document.getElementById('bannerAppIconCanvas'), 1);
             renderOriginalAppIcon(document.getElementById('aboutIconCanvas'), 2);
         }
+
+        /* ============================================================================
+         * 9. TIMER, STATS MODAL, VICTORY PENGUIN & LAYERED SOLUTION OVERLAY
+         * ============================================================================ */
+        const WEB_STORAGE_PREFIX = 'amazing_web_';
+        const timerBadgeEl = document.getElementById('timerBadge');
+        const timerState = { accum: 0, start: 0, running: false, paused: false };
+
+        function fmtTime(sec) {
+            if (!(sec > 0)) return '00:00';
+            const s = Math.floor(sec);
+            const m = Math.floor(s / 60);
+            return String(m).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+        }
+        function fmtStatTime(sec) {
+            return (sec > 0) ? fmtTime(sec) : '--:--';
+        }
+        function updateTimerBadge() {
+            if (timerBadgeEl) timerBadgeEl.textContent = fmtTime(timerElapsed());
+        }
+        function timerReset() {
+            timerState.accum = 0;
+            timerState.start = performance.now();
+            timerState.running = true;
+            timerState.paused = document.hidden;
+            updateTimerBadge();
+        }
+        function timerElapsed() {
+            let t = timerState.accum;
+            if (timerState.running && !timerState.paused) t += (performance.now() - timerState.start) / 1000;
+            return t;
+        }
+        function timerStop() {
+            timerState.accum = timerElapsed();
+            timerState.running = false;
+            updateTimerBadge();
+        }
+        function pauseGameTimer() {
+            if (!timerState.running || timerState.paused) return;
+            timerState.accum += (performance.now() - timerState.start) / 1000;
+            timerState.paused = true;
+        }
+        function resumeGameTimer() {
+            if (!timerState.running || !timerState.paused) return;
+            timerState.start = performance.now();
+            timerState.paused = false;
+            updateTimerBadge();
+        }
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) pauseGameTimer();
+            else if (!statsModalEl || !statsModalEl.classList.contains('open')) resumeGameTimer();
+        });
+        setInterval(() => {
+            if (timerState.running && !timerState.paused) updateTimerBadge();
+        }, 250);
+
+        function getSolves(lvl) { return parseInt(localStorage.getItem(WEB_STORAGE_PREFIX + 'solves_L' + lvl) || '0', 10) || 0; }
+        function getBest(lvl) { return parseFloat(localStorage.getItem(WEB_STORAGE_PREFIX + 'best_L' + lvl) || '0') || 0; }
+        function getTotalTime(lvl) { return parseFloat(localStorage.getItem(WEB_STORAGE_PREFIX + 'total_L' + lvl) || '0') || 0; }
+        function getTimedSolves(lvl) { return parseInt(localStorage.getItem(WEB_STORAGE_PREFIX + 'timed_L' + lvl) || '0', 10) || 0; }
+        function getAverage(lvl) {
+            const timed = getTimedSolves(lvl), total = getTotalTime(lvl);
+            if (timed > 0 && total > 0) return total / timed;
+            const solves = getSolves(lvl), best = getBest(lvl);
+            return (solves === 1 && best > 0) ? best : 0;
+        }
+        function recordSolve(lvl, seconds) {
+            localStorage.setItem(WEB_STORAGE_PREFIX + 'solves_L' + lvl, String(getSolves(lvl) + 1));
+            const best = getBest(lvl);
+            if (best <= 0.01 || seconds < best) localStorage.setItem(WEB_STORAGE_PREFIX + 'best_L' + lvl, String(seconds));
+            if (seconds > 0) {
+                localStorage.setItem(WEB_STORAGE_PREFIX + 'total_L' + lvl, String(getTotalTime(lvl) + seconds));
+                localStorage.setItem(WEB_STORAGE_PREFIX + 'timed_L' + lvl, String(getTimedSolves(lvl) + 1));
+            }
+        }
+        function clearAllStats() {
+            for (let lvl = 0; lvl < 4; lvl++) {
+                localStorage.removeItem(WEB_STORAGE_PREFIX + 'solves_L' + lvl);
+                localStorage.removeItem(WEB_STORAGE_PREFIX + 'best_L' + lvl);
+                localStorage.removeItem(WEB_STORAGE_PREFIX + 'total_L' + lvl);
+                localStorage.removeItem(WEB_STORAGE_PREFIX + 'timed_L' + lvl);
+            }
+        }
+
+        const solutionDotsByCellLayer = new Map();
+
+        function buildSolutionDotsMap() {
+            solutionDotsByCellLayer.clear();
+            if (!gShowingSolution || !activeSolutionNodes || activeSolutionNodes.length < 2) return;
+            for (let i = 0; i < activeSolutionNodes.length - 1; i++) {
+                const a = activeSolutionNodes[i];
+                const b = activeSolutionNodes[i + 1];
+                let dir = -1;
+                if (b.c === a.c - 1) dir = DIR_LEFT;
+                else if (b.r === a.r + 1) dir = DIR_DOWN;
+                else if (b.c === a.c + 1) dir = DIR_RIGHT;
+                else if (b.r === a.r - 1) dir = DIR_UP;
+
+                let outLayer = a.layer, inLayer = b.layer;
+                if (dir !== -1) {
+                    const stepInfo = canMove(a.r, a.c, a.layer, dir);
+                    if (stepInfo) {
+                        const otherBase = (baseLayerOfPlane(a.layer) === LAYER_WIDE_BASE) ? LAYER_NARROW_BASE : LAYER_WIDE_BASE;
+                        outLayer = MemberOf(dir, a.r, a.c, a.layer) ? a.layer : otherBase;
+                        inLayer = stepInfo.entryLayer;
+                    }
+                }
+                const ax = MARGIN_X + (a.c - 1) * TILE_STRIDE + 7;
+                const ay = MARGIN_Y + (a.r - 1) * TILE_STRIDE + 7;
+                const bx = MARGIN_X + (b.c - 1) * TILE_STRIDE + 7;
+                const by = MARGIN_Y + (b.r - 1) * TILE_STRIDE + 7;
+                const isHorizontal = (by === ay);
+                const prev = i > 0 ? activeSolutionNodes[i - 1] : null;
+                const isCornerStart = prev && ((prev.r === a.r) !== (a.r === b.r));
+
+                const steps = Math.max(Math.abs(bx - ax), Math.abs(by - ay));
+                for (let s = 0; s <= steps; s++) {
+                    const firstHalf = s < steps / 2;
+                    const segLayer = firstHalf ? outLayer : inLayer;
+                    const isWide = (segLayer === LAYER_WIDE_BASE || segLayer === LAYER_WIDE_BRIDGE);
+                    if (isWide) { if ((s & 2) !== 0) continue; }
+                    else { if ((s & 1) !== 0) continue; }
+                    const px = steps === 0 ? ax : Math.trunc(ax + (bx - ax) * s / steps);
+                    const py = steps === 0 ? ay : Math.trunc(ay + (by - ay) * s / steps);
+                    const dw = (isWide || (s === 0 && isCornerStart) || !isHorizontal) ? 2 : 1;
+                    const dh = (isWide || (s === 0 && isCornerStart) || isHorizontal) ? 2 : 1;
+                    const key = firstHalf ? `${a.r},${a.c},${outLayer}` : `${b.r},${b.c},${inLayer}`;
+                    let list = solutionDotsByCellLayer.get(key);
+                    if (!list) { list = []; solutionDotsByCellLayer.set(key, list); }
+                    list.push({ x: px, y: py, w: dw, h: dh });
+                }
+            }
+        }
+
+        function drawSolutionDotsForCellLayer(r, c, layer) {
+            if (!gShowingSolution || solutionDotsByCellLayer.size === 0) return;
+            const list = solutionDotsByCellLayer.get(`${r},${c},${layer}`);
+            if (!list) return;
+            for (let i = 0; i < list.length; i++) {
+                const d = list[i];
+                fillRectFB(d.x, d.y, d.w, d.h, 1);
+            }
+        }
+
+        const PENGUIN_SPRITE = [
+            "      #######                                                                          ",
+            "    ##.......##                                                                        ",
+            "   #..........##                                                                       ",
+            "  #.............#                                                                      ",
+            " #.......####...##                                                                     ",
+            "##....#######....#.    #############################################                   ",
+            "#.....####..#....########################################################              ",
+            "#.....#.....#....###########################################################           ",
+            "#.....#.....#.....####.#.###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.########          ",
+            "#.....#...###.....###.#.#####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.######         ",
+            "#.....#..####.....##.#.#####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#####       ",
+            "#...###..###......###.####.##.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.####       ",
+            "#..####...........########.###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.####      ",
+            "#..###.............######.#####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###      ",
+            "##...............########.##.#####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###     ",
+            " #.............#############..#######.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#####    ",
+            "  #............###.###..###....#######.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.####    ",
+            "  ##..........###.####..###.....#########.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.####   ",
+            "    ##.......###.#.##..############...######.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###   ",
+            "     ##########.#.####################..#######.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.####   ",
+            "       #####.#.#.#.#####.#.#####.#################.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###   ",
+            "       ##.#.#.#.#.#.#.#.#.##.##.#.#.#.###################.#.#.#.#.#.#.#.#.#.#.#.#.##   ",
+            "      ####.#.#.#.#.#.#.#.#.#####.#.#.#.#######################.#.#.#.#.#.#.#.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.###############.#.#.##.##############.#.#.#.#.#.#.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.###############.#.#.##...############.#.#.#.#.#.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#############.#.#.#.###..#####.######.#.#.#.#.#.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#######.#.#.#.#.#.#################.#.#.#.#.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#####.#.#.#.#.#.###############.#.#.#.#.#.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#######.#.#.#.#.#################.#.#.#.#.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#######.#.#.#.#.###############.#.#.#.#.#.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#######.#.#.#.#.###############.#.#.#.#.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#########.#.#.#.##########.######.#.#.#.#.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#########.#.#.#################.#.#.#.#.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#########.#.#.######.##########.#.#.#.#.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#########.#.#######.###########.#.#.#.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#########.######...############.#.#.#.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##############....###########.#.#.#.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.############.....############.#.#.#.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###########.....#############.#.#.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###########......############.#.#.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#########.......#############.#.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#######........##############.#.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#####.........#############.#.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.####..........#############.#.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##...........############.#.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###...........#############.#.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##...........##############.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###............##############.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.####.............############.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##..............#############.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#...............###########.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##...............############.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###...............#############.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##...............############.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###...............#############.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##...............############.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#...............#############.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##...............##############.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#...............#############.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##...............############.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#...............#############.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###..............############.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##...............############.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###...............###########.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##...............############.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###...............###########.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##...............############.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###................##########.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##................###########.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.................#########.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###................##########.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##................#########.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.................#########.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###................########.#.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##................#########.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###................##########.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##................#########.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##................#########.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###.................#######.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##.................########.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##.................######.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###..................######.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###..................####.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##..................#####.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##.................####.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###.................###.#.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###.##.............####.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##..#............####.#.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.##..#...........#####.#.#.####  ",
+            "      ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###...##.........####.#.#.#.###  ",
+            "      ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###...###...#######.#.#.#.####  ",
+            "       ##.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.####...#...######.#.#.#.####   ",
+            "       ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#################.#.#.#.###   ",
+            "       ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###########.#####.#.#.####   ",
+            "       ###.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#######.#.#.#######.#.#####   ",
+            "       ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#####.#.#.#######.#.#.####   ",
+            "        ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#####.#.#.#########.#.####    ",
+            "        #####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#######.#.#########.#.#####    ",
+            "        ######.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#########.#.#######.#.#.######    ",
+            "         ####.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.###########.#.#####.#.#.######     ",
+            "          ######.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#############.#####.#.#.######      ",
+            "           ######.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#############.#.#.#.#.#.######       ",
+            "           #######.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#####.#       ",
+            "             ######.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#######.         ",
+            "              ##########.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#.#########.          ",
+            "               #############################################################           ",
+            "                  #######################################################              ",
+            "                       #############################################                   "
+        ];
+
+        function drawPenguinFB() {
+            const sh = PENGUIN_SPRITE.length;
+            const sw = PENGUIN_SPRITE[0].length;
+            const scale = Math.max(1, Math.min(2, Math.floor((fbHeight - 16) / sh)));
+            const drawW = sw * scale;
+            const drawH = sh * scale;
+            const startX = Math.floor((fbWidth - drawW) / 2);
+            const startY = Math.floor((fbHeight - drawH) / 2);
+            for (let sy = 0; sy < sh; sy++) {
+                const row = PENGUIN_SPRITE[sy];
+                for (let sx = 0; sx < row.length; sx++) {
+                    const ch = row[sx];
+                    if (ch === ' ') continue;
+                    fillRectFB(startX + sx * scale, startY + sy * scale, scale, scale, ch === '#' ? 1 : 0);
+                }
+            }
+        }
+
+        const statsModalEl = document.getElementById('statsModal');
+        const statsTableBodyEl = document.getElementById('statsTableBody');
+        const statsFooterNormalEl = document.getElementById('statsFooterNormal');
+        const statsFooterConfirmEl = document.getElementById('statsFooterConfirm');
+        const LEVEL_NAMES = ['Lv.1 Easy', 'Lv.2', 'Lv.3', 'Lv.4 Hard'];
+        let pausedByStats = false;
+
+        function setStatsConfirm(confirming) {
+            statsFooterNormalEl.classList.toggle('hidden', confirming);
+            statsFooterConfirmEl.classList.toggle('hidden', !confirming);
+        }
+        function renderStatsTable() {
+            statsTableBodyEl.innerHTML = '';
+            let totalSolves = 0, totalTime = 0, totalTimed = 0, overallBest = 0;
+            for (let lvl = 0; lvl < 4; lvl++) {
+                const solves = getSolves(lvl), best = getBest(lvl), avg = getAverage(lvl);
+                const timed = getTimedSolves(lvl), tSum = getTotalTime(lvl);
+                totalSolves += solves;
+                if (timed > 0 && tSum > 0) { totalTimed += timed; totalTime += tSum; }
+                else if (solves === 1 && best > 0) { totalTimed += 1; totalTime += best; }
+                if (best > 0 && (overallBest <= 0 || best < overallBest)) overallBest = best;
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-black' + (lvl === gSkillLevel ? ' font-bold' : '');
+                tr.innerHTML = `<td class="py-1">${lvl === gSkillLevel ? '▸ ' : ''}${LEVEL_NAMES[lvl]}</td><td class="text-right py-1">${solves}</td><td class="text-right py-1">${fmtStatTime(best)}</td><td class="text-right py-1">${fmtStatTime(avg)}</td>`;
+                statsTableBodyEl.appendChild(tr);
+            }
+            const overallAvg = totalTimed > 0 ? (totalTime / totalTimed) : 0;
+            const totalTr = document.createElement('tr');
+            totalTr.className = 'border-t-2 border-black font-bold';
+            totalTr.innerHTML = `<td class="pt-1.5">Total</td><td class="text-right pt-1.5">${totalSolves}</td><td class="text-right pt-1.5">${fmtStatTime(overallBest)}</td><td class="text-right pt-1.5">${fmtStatTime(overallAvg)}</td>`;
+            statsTableBodyEl.appendChild(totalTr);
+        }
+        function openStatsModal() {
+            if (timerState.running && !timerState.paused) { pausedByStats = true; pauseGameTimer(); }
+            else pausedByStats = false;
+            setStatsConfirm(false);
+            renderStatsTable();
+            statsModalEl.classList.add('open');
+        }
+        function closeStatsModal() {
+            statsModalEl.classList.remove('open');
+            setStatsConfirm(false);
+            if (pausedByStats) { pausedByStats = false; resumeGameTimer(); }
+        }
+        document.getElementById('btnTrophy').addEventListener('click', openStatsModal);
+        document.getElementById('btnCloseStats').addEventListener('click', closeStatsModal);
+        document.getElementById('btnResetStats').addEventListener('click', () => setStatsConfirm(true));
+        document.getElementById('btnCancelReset').addEventListener('click', () => setStatsConfirm(false));
+        document.getElementById('btnConfirmReset').addEventListener('click', () => {
+            clearAllStats();
+            setStatsConfirm(false);
+            renderStatsTable();
+        });
+        statsModalEl.addEventListener('click', (e) => { if (e.target === statsModalEl) closeStatsModal(); });
 
         // Initialize on window load
         window.onload = function () {
