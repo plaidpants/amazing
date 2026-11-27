@@ -6,6 +6,10 @@ https://plaidpants.github.io/amazing/amazing_1984_macintosh_port.html
 
 https://en.wikipedia.org/wiki/Steve_Capps
 
+There is a 3D version available here
+
+https://github.com/plaidpants/Amazing3D
+
 ## Contents
 
 - `amazing_1984_macintosh_port.html` — Self-contained 1-bit Macintosh web port with 4 difficulty levels (flat wide paths, 90° overpasses, upper narrow walkways, and diagonal ramps).
